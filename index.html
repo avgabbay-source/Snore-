@@ -1,0 +1,705 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="יומן נחירות">
+<meta name="theme-color" content="#0d1322">
+<title>יומן נחירות</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Rubik:wght@500;700&display=swap">
+<style>
+/* Layout: night-first app shell — tab content above a fixed bottom bar; recording runs as a full-black overlay */
+:root{
+  --bg:#0d1322; --surface:#151d31; --surface2:#1c2640; --line:#27324e;
+  --fg:#e7eaf3; --muted:#8d96b0; --accent:#f2c46d; --accent-ink:#1b1405;
+  --c0:#4fc3a1; --c1:#7aa7ff; --c2:#f2a65a; --c3:#ef6f6c;
+  --danger:#ef6f6c;
+  --f-display:"Rubik","Assistant",system-ui,sans-serif;
+  --f-body:"Assistant",system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
+  --r:14px;
+  color-scheme:dark;
+}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]){
+    --bg:#f3f4f8; --surface:#ffffff; --surface2:#eceff6; --line:#dbe0eb;
+    --fg:#151a2a; --muted:#5b6480; --accent:#a86d12; --accent-ink:#ffffff;
+    --c0:#1f8f6c; --c1:#3b6bd4; --c2:#c4761c; --c3:#cc4744; --danger:#c43c39;
+    color-scheme:light;
+  }
+}
+:root[data-theme="light"]{
+  --bg:#f3f4f8; --surface:#ffffff; --surface2:#eceff6; --line:#dbe0eb;
+  --fg:#151a2a; --muted:#5b6480; --accent:#a86d12; --accent-ink:#ffffff;
+  --c0:#1f8f6c; --c1:#3b6bd4; --c2:#c4761c; --c3:#cc4744; --danger:#c43c39;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:16px;line-height:1.5;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:calc(76px + env(safe-area-inset-bottom,0px));
+  -webkit-tap-highlight-color:transparent}
+h1,h2,h3{font-family:var(--f-display);font-weight:700;margin:0;text-wrap:balance;line-height:1.2}
+h1{font-size:1.5rem} h2{font-size:1.15rem} h3{font-size:1rem;font-weight:500}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.num{font-variant-numeric:tabular-nums}
+.wrap{max-width:720px;margin:0 auto;padding-block:16px 24px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  display:flex;flex-direction:column;gap:18px}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.eyebrow{font-size:.78rem;letter-spacing:.06em;color:var(--muted);font-weight:600}
+.muted{color:var(--muted)}
+.small{font-size:.88rem}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.btn{border:1px solid var(--line);background:var(--surface2);border-radius:999px;padding:9px 16px;font-weight:600}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.btn.ghost{background:transparent}
+.btn.danger{color:var(--danger);background:transparent;border-color:var(--line)}
+.btn.big{padding:16px 22px;font-size:1.1rem;width:100%;border-radius:16px;font-family:var(--f-display)}
+.icon-btn{width:40px;height:40px;border-radius:50%;border:1px solid var(--line);background:var(--surface);display:grid;place-items:center;font-size:1.1rem}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface2);border-radius:999px;padding:6px 12px;font-size:.92rem}
+.chip[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:transparent;font-weight:600}
+.dot{width:10px;height:10px;border-radius:50%;display:inline-block;flex:none}
+.cat-badge{display:inline-flex;align-items:center;gap:8px;border-radius:999px;padding:5px 12px;font-weight:700;font-size:.9rem;
+  background:color-mix(in srgb,var(--cc) 18%,transparent);color:var(--cc);border:1px solid color-mix(in srgb,var(--cc) 40%,transparent)}
+.cat-badge .dot{background:var(--cc)}
+.banner{border:1px dashed var(--accent);color:var(--fg);border-radius:12px;padding:10px 14px;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;font-size:.92rem}
+
+/* bottom nav */
+nav.tabs{position:fixed;inset:auto 0 0 0;z-index:20;background:color-mix(in srgb,var(--surface) 94%,transparent);
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-top:1px solid var(--line);
+  display:grid;grid-template-columns:repeat(4,1fr);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px)}
+nav.tabs button{background:none;border:0;padding:10px 4px 12px;display:flex;flex-direction:column;align-items:center;gap:3px;color:var(--muted);font-size:.8rem;font-weight:600}
+nav.tabs button svg{width:24px;height:24px}
+nav.tabs button[aria-current="page"]{color:var(--accent)}
+
+/* calendar */
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.cal .dow{text-align:center;font-size:.78rem;color:var(--muted);font-weight:600}
+.cal .d{aspect-ratio:1/1;max-width:100%;border-radius:12px;border:1px solid transparent;background:var(--surface2);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:0;font-variant-numeric:tabular-nums;font-weight:600}
+.cal .d.out{visibility:hidden}
+.cal .d.today{border-color:var(--accent)}
+.cal .d.sel{outline:2px solid var(--fg);outline-offset:1px}
+.cal .d .dot{width:9px;height:9px}
+.cal .d.has{background:color-mix(in srgb,var(--cc) 22%,var(--surface2))}
+.cal .d.future{opacity:.45}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.85rem;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+
+.night-list{display:flex;flex-direction:column;gap:8px}
+.night-item{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;text-align:right;width:100%}
+.night-item .date{font-family:var(--f-display);font-weight:500;min-width:3.2em;text-align:center;line-height:1.1}
+.night-item .date b{display:block;font-size:1.3rem}
+.night-item .mid{min-width:0}
+.night-item .tags{color:var(--muted);font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.night-item .pct{font-weight:700;font-variant-numeric:tabular-nums}
+
+/* stats */
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.stats div{background:var(--surface);padding:10px 12px;min-width:0}
+.stats b{display:block;font-size:1.2rem;font-family:var(--f-display);font-weight:500;font-variant-numeric:tabular-nums}
+.stats span{font-size:.8rem;color:var(--muted)}
+@media (max-width:380px){.stats{grid-template-columns:repeat(2,1fr)}}
+
+.verdict{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.verdict .big{font-family:var(--f-display);font-size:2.4rem;font-weight:700;line-height:1;color:var(--cc);font-variant-numeric:tabular-nums}
+.verdict .big small{font-size:1rem;font-weight:500;color:var(--muted)}
+
+canvas{display:block;width:100%;max-width:100%}
+.chart-wrap{position:relative}
+textarea,input[type=text],input[type=date],select{width:100%;background:var(--surface2);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+textarea{min-height:90px;resize:vertical}
+.tagrow{display:flex;flex-wrap:wrap;gap:8px}
+.addtag{display:flex;gap:8px}
+.addtag input{flex:1;min-width:0}
+
+.clip{display:flex;flex-direction:column;gap:6px;padding:10px 0;border-top:1px solid var(--line)}
+.clip:first-child{border-top:0;padding-top:0}
+.clip audio{width:100%;height:40px}
+
+/* meter */
+.meter{height:12px;border-radius:999px;background:var(--surface2);overflow:hidden;position:relative}
+.meter i{position:absolute;inset:0 0 0 auto;width:0;background:var(--accent);border-radius:999px;transition:width .1s linear}
+.meter.low i{background:var(--c1)}
+
+.tips{margin:0;padding-inline-start:20px;display:flex;flex-direction:column;gap:6px;color:var(--muted);font-size:.93rem}
+.tips b{color:var(--fg);font-weight:600}
+
+/* effect table */
+.eff{display:flex;flex-direction:column;gap:10px}
+.eff-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;align-items:center}
+.eff-row .name{font-weight:600;min-width:0}
+.eff-row .val{font-variant-numeric:tabular-nums;font-weight:700}
+.eff-row .bar{grid-column:1/-1;height:8px;position:relative;background:var(--surface2);border-radius:999px}
+.eff-row .bar i{position:absolute;top:0;bottom:0;border-radius:999px}
+.eff-row .bar .mid{position:absolute;top:-3px;bottom:-3px;width:2px;left:50%;background:var(--muted);opacity:.6}
+.eff-row .meta{grid-column:1/-1;font-size:.8rem;color:var(--muted)}
+
+.distbar{display:flex;height:16px;border-radius:999px;overflow:hidden;background:var(--surface2)}
+.distbar i{display:block;height:100%}
+
+.seg{display:inline-flex;background:var(--surface2);border:1px solid var(--line);border-radius:999px;padding:3px;gap:2px;flex-wrap:wrap}
+.seg button{border:0;background:none;border-radius:999px;padding:6px 12px;font-weight:600;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--fg);box-shadow:0 1px 2px rgb(0 0 0 / .2)}
+
+/* empty */
+.empty{text-align:center;padding:28px 16px;display:flex;flex-direction:column;gap:10px;align-items:center}
+.empty svg{width:64px;height:64px;color:var(--accent)}
+
+/* modal */
+.modal{position:fixed;inset:0;z-index:60;background:rgb(0 0 0 / .55);display:grid;place-items:center;padding:20px}
+.modal .box{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:20px;max-width:380px;width:100%;display:flex;flex-direction:column;gap:14px}
+.modal .row{justify-content:flex-start}
+.toast{position:fixed;z-index:70;left:50%;transform:translateX(-50%);bottom:calc(90px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:999px;font-weight:600;font-size:.92rem;max-width:calc(100% - 32px)}
+
+/* night overlay */
+#night{position:fixed;inset:0;z-index:50;background:#000;color:#5d6478;display:flex;flex-direction:column;align-items:center;justify-content:space-between;
+  padding:calc(40px + env(safe-area-inset-top,0px)) max(20px,env(safe-area-inset-right,0px)) calc(40px + env(safe-area-inset-bottom,0px)) max(20px,env(safe-area-inset-left,0px));
+  user-select:none;-webkit-user-select:none;text-align:center}
+#night .clock{font-family:var(--f-display);font-size:4.2rem;font-weight:500;color:#3e4456;letter-spacing:.02em;font-variant-numeric:tabular-nums;line-height:1}
+#night .sub{font-size:.95rem;color:#3e4456;display:flex;flex-direction:column;gap:6px;align-items:center}
+#night .rec{display:inline-flex;align-items:center;gap:8px}
+#night .rec i{width:8px;height:8px;border-radius:50%;background:#6b2420}
+#night .warn{color:#b8873a;font-size:1rem;max-width:300px}
+#night .hold{position:relative;width:120px;height:120px;border-radius:50%;border:1px solid #23262f;background:#07080b;color:#596073;font-weight:600;font-size:.95rem;touch-action:none}
+#night .hold svg{position:absolute;inset:-1px;width:122px;height:122px;transform:rotate(-90deg)}
+#night .hold circle{fill:none;stroke:#8a6a2e;stroke-width:3;stroke-dasharray:370;stroke-dashoffset:370}
+#night .hold.pressing circle{transition:stroke-dashoffset 1.6s linear;stroke-dashoffset:0}
+@media (prefers-reduced-motion: reduce){ .meter i{transition:none} }
+</style>
+</head>
+<body>
+<main id="main"></main>
+
+<nav class="tabs" aria-label="ניווט">
+  <button data-tab="journal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>יומן</button>
+  <button data-tab="record"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M19 14.5A8 8 0 0 1 9.5 5a7 7 0 1 0 9.5 9.5Z"/></svg>הלילה</button>
+  <button data-tab="reports"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 20h16M7 16v-5M12 16V7M17 16v-8"/></svg>דוחות</button>
+  <button data-tab="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>הגדרות</button>
+</nav>
+
+<div id="night" hidden>
+  <div class="sub">
+    <span class="rec"><i></i><span id="nRec">מקליט</span></span>
+    <span id="nWarn" class="warn" hidden></span>
+  </div>
+  <div>
+    <div class="clock" id="nClock">00:00</div>
+    <div class="sub" style="margin-top:14px"><span id="nElapsed" class="num">0:00 שעות</span><span id="nCount" class="num"></span></div>
+  </div>
+  <div class="sub">
+    <button class="hold" id="nHold" aria-label="החזק כדי לסיים את הלילה"><svg viewBox="0 0 122 122"><circle cx="61" cy="61" r="59"/></svg>החזק<br>לסיום</button>
+    <span>השאר את הטלפון מחובר למטען ואת האפליקציה פתוחה</span>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ============ constants ============ */
+const CATS=[
+  {k:0,name:'בכלל לא',v:'--c0'},
+  {k:1,name:'מעט מאוד',v:'--c1'},
+  {k:2,name:'לסירוגין',v:'--c2'},
+  {k:3,name:'היו נחירות',v:'--c3'}
+];
+const CAT_T=[2,8,25];               // % of monitored minutes with snoring
+const CAT_MID=[0.5,5,16,40];          // used for manual nights in analysis
+const SENS={high:{db:7,label:'גבוהה'},mid:{db:10,label:'בינונית'},low:{db:14,label:'נמוכה'}};
+const DEFAULT_TAGS=['אלכוהול','ארוחה כבדה מאוחרת','קפאין אחרי 16:00','ספורט בערב','ישנתי על הגב','ישנתי על הצד','מדבקת אף','תרסיס לאף','אף סתום / צינון','כרית הגבהה','עייפות קיצונית','שומר לילה לפה'];
+const DOW=['א׳','ב׳','ג׳','ד׳','ה׳','ו׳','ש׳'];
+
+const S={tab:'journal',month:null,sel:null,nights:new Map(),tags:[...DEFAULT_TAGS],settings:{sens:'mid',clips:10},period:30,recDate:null};
+
+/* ============ helpers ============ */
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pad=n=>String(n).padStart(2,'0');
+const ymd=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+const parseYmd=s=>{const[a,b,c]=s.split('-').map(Number);return new Date(a,b-1,c)};
+const hm=ts=>{const d=new Date(ts);return pad(d.getHours())+':'+pad(d.getMinutes())};
+const fmtDur=min=>{min=Math.round(min);const h=Math.floor(min/60),m=min%60;return h?`${h}:${pad(m)} ש׳`:`${m} דק׳`};
+const fmtPct=p=>(p==null?'—':(p<10?p.toFixed(1):Math.round(p))+'%');
+const cssv=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const tonightId=()=>{const d=new Date();if(d.getHours()<12)d.setDate(d.getDate()-1);return ymd(d)};
+const longDate=id=>new Intl.DateTimeFormat('he-IL',{weekday:'long',day:'numeric',month:'long'}).format(parseYmd(id));
+const shortDate=id=>new Intl.DateTimeFormat('he-IL',{day:'numeric',month:'numeric'}).format(parseYmd(id));
+const catOf=p=>p<CAT_T[0]?0:p<CAT_T[1]?1:p<CAT_T[2]?2:3;
+function effCat(n){if(n.override!=null)return n.override;if(n.summary)return n.summary.cat;return null}
+function effPct(n){if(n.summary&&n.override==null)return n.summary.pct;const c=effCat(n);return c==null?null:(n.summary&&catOf(n.summary.pct)===c?n.summary.pct:CAT_MID[c])}
+function badge(c,extra=''){if(c==null)return '<span class="chip">ללא סיווג</span>';const k=CATS[c];return `<span class="cat-badge" style="--cc:var(${k.v})"><span class="dot"></span>${k.name}${extra}</span>`}
+function toast(msg){const t=document.createElement('div');t.className='toast';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),2200)}
+function ask(msg,ok='אישור',danger=false){return new Promise(res=>{const m=document.createElement('div');m.className='modal';
+  m.innerHTML=`<div class="box" role="dialog" aria-modal="true"><div>${msg}</div><div class="row"><button class="btn ${danger?'danger':'primary'}" data-a="1">${esc(ok)}</button><button class="btn ghost" data-a="0">ביטול</button></div></div>`;
+  m.addEventListener('click',e=>{const b=e.target.closest('[data-a]');if(b||e.target===m){m.remove();res(b?.dataset.a==='1')}});document.body.appendChild(m);m.querySelector('[data-a="1"]').focus()})}
+
+/* ============ storage (IndexedDB) ============ */
+let idb=null;const memStore={nights:new Map(),clips:new Map(),meta:new Map()};
+function openDB(){return new Promise(res=>{try{const r=indexedDB.open('snore-journal',1);
+  r.onupgradeneeded=()=>{const d=r.result;['nights','clips','meta'].forEach(n=>{if(!d.objectStoreNames.contains(n))d.createObjectStore(n,{keyPath:n==='meta'?'k':'id'})})};
+  r.onsuccess=()=>res(r.result);r.onerror=()=>res(null)}catch(e){res(null)}})}
+function tx(store,mode,fn){if(!idb){return Promise.resolve(fn(null,memStore[store]))}
+  return new Promise((res,rej)=>{let out;try{const t=idb.transaction(store,mode);const r=fn(t.objectStore(store));if(r)r.onsuccess=()=>{out=r.result};t.oncomplete=()=>res(out);t.onerror=()=>rej(t.error)}catch(e){rej(e)}})}
+const dbPut=(st,v)=>tx(st,'readwrite',(s,m)=>s?s.put(v):void m.set(v.id??v.k,v));
+const dbDel=(st,k)=>tx(st,'readwrite',(s,m)=>s?s.delete(k):void m.delete(k));
+const dbGet=(st,k)=>tx(st,'readonly',(s,m)=>s?s.get(k):m.get(k));
+const dbAll=st=>tx(st,'readonly',(s,m)=>s?s.getAll():[...m.values()]);
+async function saveNight(n){S.nights.set(n.id,n);const copy={...n};await dbPut('nights',copy)}
+async function saveMeta(){await dbPut('meta',{k:'cfg',tags:S.tags,settings:S.settings})}
+async function deleteNight(id){const n=S.nights.get(id);if(n?.clipIds)for(const c of n.clipIds)await dbDel('clips',c);S.nights.delete(id);await dbDel('nights',id)}
+
+/* ============ summary ============ */
+function summarize(n){
+  let cov=0,sm=0,ev=0,ep=0,longest=0,run=0,quiet=0,peak=0,first=null,other=0;
+  (n.minutes||[]).forEach((m,i)=>{if(!m)m={s:0,o:0,l:0,c:0};cov+=Math.min(60,m.c||0);ev+=m.s;other+=m.o||0;
+    if(m.s>=2){sm++;if(first==null)first=i;if(run===0)ep++;run+=1+quiet;quiet=0;longest=Math.max(longest,run);peak=Math.max(peak,m.l||0)}
+    else if(run>0){quiet++;if(quiet>1){run=0;quiet=0}}});
+  const mon=cov/60;const pct=mon>0?Math.min(100,sm/mon*100):0;
+  return {mon:Math.round(mon),sm,pct:Math.round(pct*10)/10,ev,other,ep,longest,peak,first,cat:catOf(pct)};
+}
+
+/* ============ recording engine ============ */
+const R={active:false};
+let wakeLock=null;
+async function lockWake(){try{if('wakeLock' in navigator){wakeLock=await navigator.wakeLock.request('screen')}}catch(e){}}
+function pickMime(){if(!window.MediaRecorder)return null;for(const m of['audio/mp4','audio/webm;codecs=opus','audio/webm','audio/ogg'])if(MediaRecorder.isTypeSupported?.(m))return m;return ''}
+function ensureMin(i){const a=R.night.minutes;while(a.length<=i)a.push({s:0,o:0,l:0,c:0})}
+
+async function openMic(){
+  if(!navigator.mediaDevices?.getUserMedia)throw new Error('nomic');
+  const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});
+  const ac=new (window.AudioContext||window.webkitAudioContext)();await ac.resume();
+  const src=ac.createMediaStreamSource(stream);const an=ac.createAnalyser();an.fftSize=2048;an.smoothingTimeConstant=0;src.connect(an);
+  const binHz=ac.sampleRate/an.fftSize;const fd=new Float32Array(an.frequencyBinCount);
+  return {stream,ac,an,td:new Float32Array(an.fftSize),fd,lo0:Math.max(1,Math.round(60/binHz)),lo1:Math.round(800/binHz),hi1:Math.min(fd.length-1,Math.round(4000/binHz))};
+}
+function measure(M){
+  M.an.getFloatTimeDomainData(M.td);let sum=0;for(let i=0;i<M.td.length;i++)sum+=M.td[i]*M.td[i];
+  const lvl=20*Math.log10(Math.sqrt(sum/M.td.length)+1e-9);
+  M.an.getFloatFrequencyData(M.fd);let lo=0,tot=0;for(let i=M.lo0;i<=M.hi1;i++){const p=Math.pow(10,M.fd[i]/10);tot+=p;if(i<=M.lo1)lo+=p}
+  return {lvl,ratio:tot>0?lo/tot:0};
+}
+
+async function startNight(id){
+  if(R.active)return;
+  const prev=S.nights.get(id);
+  if(prev&&!prev.manual&&prev.summary){if(!await ask(`כבר יש הקלטה ל${esc(longDate(id))}. להחליף אותה? התגיות וההערות יישמרו.`,'להחליף',true))return}
+  let M;try{M=await openMic()}catch(e){
+    await ask(location.protocol==='https:'||location.hostname==='localhost'?'אין גישה למיקרופון. אשר גישה בהגדרות ספארי לאתר הזה ונסה שוב.':'הקלטה דורשת שהאפליקציה תיפתח מכתובת https. ראה הוראות בהגדרות.','הבנתי');return}
+  if(prev?.clipIds)for(const c of prev.clipIds)await dbDel('clips',c);
+  Object.assign(R,{active:true,M,hist:[],floor:-60,fc:0,ev:null,cands:[],below:0,live:0,last:performance.now(),kept:[],mime:pickMime(),seg:null,segPromise:null,
+    night:{id,date:id,start:Date.now(),end:null,status:'recording',minutes:[],events:[],tags:prev?.tags||[],note:prev?.note||'',clipIds:[],override:null,sens:S.settings.sens,manual:false}});
+  await saveNight(R.night);
+  R.timer=setInterval(tick,100);
+  R.saver=setInterval(()=>{if(R.active)saveNight({...R.night,summary:summarize(R.night)})},60000);
+  R.clock=setInterval(updateOverlay,1000);
+  M.ac.onstatechange=()=>{if(R.active&&M.ac.state!=='running')showWarn(true)};
+  startSegment();lockWake();
+  $('#night').hidden=false;updateOverlay();
+}
+function showWarn(on){const w=$('#nWarn');w.hidden=!on;if(on)w.textContent='ההקלטה נעצרה (המסך ננעל או שיחה נכנסה). גע במסך כדי להמשיך.'}
+function tick(){
+  const now=performance.now();const dt=(now-R.last)/1000;R.last=now;
+  const t=(Date.now()-R.night.start)/1000;const mi=Math.floor(t/60);ensureMin(mi);
+  if(dt>2||R.M.ac.state!=='running')return; // gap: not counted as monitored time
+  R.night.minutes[mi].c+=dt;
+  const {lvl,ratio}=measure(R.M);
+  R.hist.push(lvl);if(R.hist.length>600)R.hist.shift();
+  if(++R.fc%10===0||R.hist.length<20){const s=[...R.hist].sort((a,b)=>a-b);R.floor=s[Math.floor(s.length*0.2)]}
+  if(R.hist.length<30)return; // warm-up: learn the room
+  const thr=R.floor+SENS[R.night.sens].db;
+  if(R.ev){
+    if(lvl>thr-2){R.ev.dur+=dt;R.ev.pk=Math.max(R.ev.pk,lvl-R.floor);R.ev.rs+=ratio;R.ev.n++;R.below=0}
+    else{R.below+=dt;if(R.below>=0.3)endEvent()}
+    if(R.ev&&R.ev.dur>6)endEvent();
+  }else if(lvl>thr){R.ev={t,dur:dt,pk:lvl-R.floor,rs:ratio,n:1};R.below=0}
+}
+function endEvent(){
+  const e=R.ev;R.ev=null;if(!e)return;const r=e.rs/e.n;const mi=Math.floor(e.t/60);ensureMin(mi);const m=R.night.minutes[mi];
+  m.l=Math.max(m.l,Math.round(e.pk));
+  if(e.dur>=0.3&&e.dur<=4&&r>=0.55){
+    if(R.seg&&e.t>=R.seg.t0-0.5)R.seg.score=Math.max(R.seg.score,e.pk);
+    const c=R.cands;const b=c[c.length-1],a=c[c.length-2];const inR=g=>g>=1.5&&g<=12;
+    c.push(e);if(c.length>4)c.shift();
+    if(b&&inR(e.t-b.t)){
+      if(b.ok){confirmEv(e)}
+      else if(a&&inR(b.t-a.t)){[a,b,e].forEach(x=>{if(!x.ok)confirmEv(x)})}
+    }
+  }else m.o++;
+}
+function confirmEv(x){x.ok=1;const mi=Math.floor(x.t/60);ensureMin(mi);R.night.minutes[mi].s++;R.live++;
+  if(R.night.events.length<6000)R.night.events.push([Math.round(x.t*10)/10,Math.round(x.dur*10)/10,Math.round(x.pk)])}
+
+function startSegment(){
+  if(!R.active||R.mime===null)return;let mr;
+  try{mr=R.mime?new MediaRecorder(R.M.stream,{mimeType:R.mime}):new MediaRecorder(R.M.stream)}catch(e){R.mime=null;return}
+  const seg={t0:(Date.now()-R.night.start)/1000,chunks:[],score:0};R.seg=seg;
+  let done;R.segPromise=new Promise(r=>done=r);
+  mr.ondataavailable=e=>{if(e.data&&e.data.size)seg.chunks.push(e.data)};
+  mr.onstop=async()=>{seg.t1=(Date.now()-R.night.start)/1000;try{await keepSeg(seg,mr.mimeType||R.mime||'audio/mp4')}catch(e){}done();if(R.active)startSegment()};
+  try{mr.start()}catch(e){R.mime=null;return}
+  R.mr=mr;R.segTO=setTimeout(()=>{try{mr.stop()}catch(e){}},20000);
+}
+async function keepSeg(seg,type){
+  if(seg.score<=0||!seg.chunks.length)return;
+  const clip={id:R.night.id+'_'+Math.round(seg.t0),night:R.night.id,t0:seg.t0,t1:seg.t1,score:seg.score,type,blob:new Blob(seg.chunks,{type})};
+  const cap=S.settings.clips*2;
+  if(R.kept.length<cap){R.kept.push(clip);await dbPut('clips',clip)}
+  else{let mi=0;R.kept.forEach((c,i)=>{if(c.score<R.kept[mi].score)mi=i});
+    if(clip.score>R.kept[mi].score){await dbDel('clips',R.kept[mi].id);R.kept[mi]=clip;await dbPut('clips',clip)}}
+  R.night.clipIds=R.kept.map(c=>c.id);
+}
+async function stopNight(){
+  if(!R.active)return;R.active=false;
+  clearInterval(R.timer);clearInterval(R.saver);clearInterval(R.clock);clearTimeout(R.segTO);
+  if(R.ev)endEvent();
+  if(R.mr&&R.mr.state!=='inactive'){try{R.mr.stop()}catch(e){}}
+  if(R.segPromise)await Promise.race([R.segPromise,new Promise(r=>setTimeout(r,3000))]);
+  const n=R.night;
+  // keep only clips that hold confirmed snores, loudest first
+  const ev=n.events;const good=R.kept.filter(c=>ev.some(e=>e[0]>=c.t0-1&&e[0]<=c.t1+1)).sort((a,b)=>b.score-a.score);
+  const keep=good.slice(0,S.settings.clips);
+  for(const c of R.kept)if(!keep.includes(c))await dbDel('clips',c.id);
+  n.clipIds=keep.sort((a,b)=>a.t0-b.t0).map(c=>c.id);
+  n.end=Date.now();n.status='done';n.summary=summarize(n);
+  await saveNight(n);
+  R.M.stream.getTracks().forEach(t=>t.stop());try{await R.M.ac.close()}catch(e){}
+  try{await wakeLock?.release()}catch(e){}wakeLock=null;
+  $('#night').hidden=true;showWarn(false);
+  S.sel=n.id;S.month=parseYmd(n.id);go('night');
+}
+function updateOverlay(){
+  if(!R.active)return;const now=new Date();$('#nClock').textContent=pad(now.getHours())+':'+pad(now.getMinutes());
+  const el=Math.floor((Date.now()-R.night.start)/60000);$('#nElapsed').textContent=`${Math.floor(el/60)}:${pad(el%60)} שעות`;
+  $('#nCount').textContent=R.hist.length<30?'לומד את רעשי החדר…':(R.live?`${R.live} נחירות זוהו`:'');
+  if(R.M.ac.state==='running')showWarn(false);
+}
+document.addEventListener('visibilitychange',()=>{if(R.active&&document.visibilityState==='visible'){lockWake();R.M.ac.resume().catch(()=>{})}});
+$('#night').addEventListener('click',()=>{if(R.active){R.M.ac.resume().catch(()=>{});lockWake()}});
+(function holdToStop(){const b=$('#nHold');let t=null;
+  const down=e=>{e.preventDefault();b.classList.add('pressing');t=setTimeout(()=>{b.classList.remove('pressing');stopNight()},1600)};
+  const up=()=>{b.classList.remove('pressing');clearTimeout(t)};
+  b.addEventListener('pointerdown',down);['pointerup','pointerleave','pointercancel'].forEach(ev=>b.addEventListener(ev,up));
+  b.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' ')stopNight()});})();
+
+/* ============ mic test ============ */
+const T={on:false};
+async function micTest(){
+  if(T.on){endTest();return}
+  try{T.M=await openMic()}catch(e){toast('אין גישה למיקרופון');return}
+  T.on=true;T.hist=[];render();
+  T.timer=setInterval(()=>{const {lvl,ratio}=measure(T.M);T.hist.push(lvl);if(T.hist.length>100)T.hist.shift();
+    const s=[...T.hist].sort((a,b)=>a-b);const floor=s[Math.floor(s.length*0.2)];const above=Math.max(0,lvl-floor);
+    const bar=$('#tMeter');if(!bar)return;bar.querySelector('i').style.width=Math.min(100,above*3)+'%';bar.classList.toggle('low',ratio>=0.55);
+    $('#tInfo').textContent=above>SENS[S.settings.sens].db?(ratio>=0.55?'צליל נמוך — מתאים לנחירה':'רעש גבוה / חד — לא ייספר כנחירה'):'שקט — רמת רקע';},100);
+  T.stop=setTimeout(endTest,20000);
+}
+function endTest(){if(!T.on)return;T.on=false;clearInterval(T.timer);clearTimeout(T.stop);T.M.stream.getTracks().forEach(t=>t.stop());T.M.ac.close().catch(()=>{});render()}
+
+/* ============ charts ============ */
+function setupCanvas(cv,h){const dpr=window.devicePixelRatio||1;const w=cv.clientWidth||cv.parentElement.clientWidth;cv.width=w*dpr;cv.height=h*dpr;cv.style.height=h+'px';const g=cv.getContext('2d');g.scale(dpr,dpr);return {g,w,h}}
+function drawTimeline(cv,n){
+  const {g,w,h}=setupCanvas(cv,150);const mins=n.minutes||[];if(!mins.length)return;
+  const fg=cssv('--fg'),mu=cssv('--muted'),ln=cssv('--line'),c3=cssv('--c3'),c2=cssv('--c2'),s2=cssv('--surface2');
+  const L=8,Rr=8,T=10,B=24,pw=w-L-Rr,ph=h-T-B;const N=mins.length;const bw=pw/N;
+  const maxS=Math.max(6,...mins.map(m=>m.s));
+  g.font='12px '+cssv('--f-body');g.textBaseline='top';
+  // gaps
+  mins.forEach((m,i)=>{if((m.c||0)<30&&i<N-1){g.fillStyle=s2;g.fillRect(L+i*bw,T,Math.max(1,bw),ph)}});
+  g.strokeStyle=ln;g.lineWidth=1;g.beginPath();g.moveTo(L,T+ph+.5);g.lineTo(L+pw,T+ph+.5);g.stroke();
+  mins.forEach((m,i)=>{if(!m.s)return;const hh=Math.max(2,m.s/maxS*ph);g.fillStyle=m.s>=2?c3:c2;g.fillRect(L+i*bw,T+ph-hh,Math.max(1,bw-(bw>3?1:0)),hh)});
+  // hour ticks
+  const st=new Date(n.start);const off=(60-st.getMinutes())%60;const step=N>600?120:60;g.fillStyle=mu;g.textAlign='center';
+  for(let i=off;i<N;i+=60){const d=new Date(n.start+i*60000);if(step===120&&d.getHours()%2)continue;const x=L+i*bw;g.fillRect(x,T+ph,1,4);
+    const lbl=pad(d.getHours())+':00';const tw=g.measureText(lbl).width/2;if(x-tw>0&&x+tw<w)g.fillText(lbl,x,T+ph+6)}
+}
+function drawTrend(cv,list){
+  const {g,w,h}=setupCanvas(cv,180);if(!list.length)return;
+  const mu=cssv('--muted'),ln=cssv('--line');g.font='12px '+cssv('--f-body');
+  const L=34,Rr=8,T=10,B=24,pw=w-L-Rr,ph=h-T-B;
+  const vals=list.map(effPct);const max=Math.max(30,Math.ceil(Math.max(...vals.map(v=>v||0))/10)*10);
+  g.textAlign='right';g.textBaseline='middle';g.fillStyle=mu;
+  for(let v=0;v<=max;v+=max>50?20:10){const y=T+ph-v/max*ph;g.fillStyle=ln;g.fillRect(L,Math.round(y)+.5,pw,1);g.fillStyle=mu;g.fillText(v+'%',L-6,y)}
+  // category thresholds
+  g.setLineDash([3,4]);g.strokeStyle=mu;g.globalAlpha=.5;[CAT_T[2]].forEach(v=>{if(v<=max){const y=Math.round(T+ph-v/max*ph)+.5;g.beginPath();g.moveTo(L,y);g.lineTo(L+pw,y);g.stroke()}});g.setLineDash([]);g.globalAlpha=1;
+  const N=list.length;const slot=pw/N;const bw=Math.max(3,Math.min(26,slot*.68));
+  list.forEach((n,i)=>{const v=vals[i]||0;const c=effCat(n);const x=L+slot*i+(slot-bw)/2;const hh=Math.max(2,v/max*ph);
+    g.fillStyle=cssv(CATS[c??0].v);g.globalAlpha=n.manual?0.55:1;g.beginPath();g.roundRect?g.roundRect(x,T+ph-hh,bw,hh,[3,3,0,0]):g.rect(x,T+ph-hh,bw,hh);g.fill();g.globalAlpha=1});
+  g.fillStyle=mu;g.textAlign='center';g.textBaseline='top';const every=Math.ceil(N/7);
+  list.forEach((n,i)=>{if((N-1-i)%every)return;const x=L+slot*i+slot/2;g.fillText(shortDate(n.id),x,T+ph+6)});
+}
+
+/* ============ analysis ============ */
+function inPeriod(){const all=[...S.nights.values()].filter(n=>effCat(n)!=null&&n.status!=='recording').sort((a,b)=>a.id<b.id?-1:1);
+  if(S.period==='all')return all;const from=new Date();from.setDate(from.getDate()-S.period);const f=ymd(from);return all.filter(n=>n.id>=f)}
+function tagEffects(list){
+  const tags=new Set();list.forEach(n=>(n.tags||[]).forEach(t=>tags.add(t)));const out=[];
+  tags.forEach(t=>{const w=list.filter(n=>n.tags?.includes(t)),wo=list.filter(n=>!n.tags?.includes(t));
+    if(!w.length)return;const avg=a=>a.length?a.reduce((s,n)=>s+(effPct(n)||0),0)/a.length:null;
+    const aw=avg(w),awo=avg(wo);out.push({t,nw:w.length,nwo:wo.length,aw,awo,diff:awo==null?null:aw-awo,solid:w.length>=3&&wo.length>=3})});
+  return out.sort((a,b)=>(a.diff??0)-(b.diff??0));
+}
+
+/* ============ views ============ */
+function go(tab){S.tab=tab;window.scrollTo(0,0);render()}
+document.querySelectorAll('nav.tabs button').forEach(b=>b.addEventListener('click',()=>{if(T.on)endTest();if(b.dataset.tab==='journal')S.sel=null;go(b.dataset.tab)}));
+
+function render(){
+  document.querySelectorAll('nav.tabs button').forEach(b=>b.setAttribute('aria-current',(b.dataset.tab===S.tab||(S.tab==='night'&&b.dataset.tab==='journal'))?'page':'false'));
+  const v={journal:vJournal,night:vNight,record:vRecord,reports:vReports,settings:vSettings}[S.tab]();
+  $('#main').innerHTML=`<div class="wrap">${v.html}</div>`;v.after?.();
+}
+const demoBanner=()=>[...S.nights.values()].some(n=>n.demo)?`<div class="banner"><span>מוצגים לילות דוגמה, כדי לראות איך הדוחות נראים.</span><button class="btn" id="clearDemo">מחק נתוני דוגמה</button></div>`:'';
+function bindDemo(){$('#clearDemo')?.addEventListener('click',async()=>{for(const n of[...S.nights.values()])if(n.demo)await deleteNight(n.id);render();toast('נתוני הדוגמה נמחקו')})}
+
+function vJournal(){
+  const m=S.month;const y=m.getFullYear(),mo=m.getMonth();const first=new Date(y,mo,1);const days=new Date(y,mo+1,0).getDate();
+  const today=ymd(new Date());let cells=DOW.map(d=>`<div class="dow">${d}</div>`).join('');
+  for(let i=0;i<first.getDay();i++)cells+='<div class="d out"></div>';
+  for(let d=1;d<=days;d++){const id=ymd(new Date(y,mo,d));const n=S.nights.get(id);const c=n?effCat(n):null;
+    cells+=`<button class="d${id===today?' today':''}${n&&c!=null?' has':''}${id>today?' future':''}" ${c!=null?`style="--cc:var(${CATS[c].v})"`:''} data-day="${id}" aria-label="${esc(longDate(id))}${c!=null?' — '+CATS[c].name:''}">${d}${c!=null?`<span class="dot" style="background:var(${CATS[c].v})"></span>`:'<span class="dot" style="visibility:hidden"></span>'}</button>`}
+  const monthNights=[...S.nights.values()].filter(n=>n.id.startsWith(`${y}-${pad(mo+1)}`)).sort((a,b)=>a.id<b.id?1:-1);
+  const any=S.nights.size>0;
+  const list=monthNights.map(nightItem).join('');
+  return {html:`
+    <div class="top"><div><div class="eyebrow">יומן נחירות</div><h1>${new Intl.DateTimeFormat('he-IL',{month:'long',year:'numeric'}).format(m)}</h1></div>
+      <div class="row"><button class="icon-btn" id="mPrev" aria-label="חודש קודם">›</button><button class="icon-btn" id="mNext" aria-label="חודש הבא">‹</button></div></div>
+    ${demoBanner()}
+    <section class="panel"><div class="cal">${cells}</div>
+      <div class="legend">${CATS.map(c=>`<span><span class="dot" style="background:var(${c.v})"></span>${c.name}</span>`).join('')}</div></section>
+    ${!any?`<section class="panel empty">
+        <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2"><path d="M46 38A20 20 0 0 1 24 14a18 18 0 1 0 22 24Z"/><path d="M42 12h8l-8 9h8M50 24h5l-5 6h5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <h2>עוד אין לילות ביומן</h2><p class="muted small" style="margin:0;max-width:34ch">בחר תאריך בלוח או לחץ על "הלילה" כדי להקליט את הלילה הראשון. אפשר גם לטעון נתוני דוגמה ולראות את הדוחות.</p>
+        <div class="row" style="justify-content:center"><button class="btn primary" id="goRec">להקלטת הלילה</button><button class="btn" id="demo">טען נתוני דוגמה</button></div></section>`
+      :`<section><div class="row" style="justify-content:space-between;margin-bottom:10px"><h2>לילות החודש</h2><span class="muted small num">${monthNights.length} לילות</span></div>
+        <div class="night-list">${list||'<p class="muted small">אין לילות בחודש הזה.</p>'}</div></section>`}`,
+  after(){
+    $('#mPrev').onclick=()=>{S.month=new Date(y,mo-1,1);render()};$('#mNext').onclick=()=>{S.month=new Date(y,mo+1,1);render()};
+    document.querySelectorAll('[data-day]').forEach(b=>b.onclick=()=>openDay(b.dataset.day));
+    document.querySelectorAll('[data-night]').forEach(b=>b.onclick=()=>{S.sel=b.dataset.night;go('night')});
+    $('#goRec')?.addEventListener('click',()=>go('record'));$('#demo')?.addEventListener('click',loadDemo);bindDemo();
+  }};
+}
+function nightItem(n){const c=effCat(n);const d=parseYmd(n.id);
+  return `<button class="night-item" data-night="${n.id}"><span class="date"><b class="num">${d.getDate()}</b><span class="small muted">${DOW[d.getDay()]}</span></span>
+    <span class="mid">${badge(c)}<div class="tags">${(n.tags||[]).length?esc(n.tags.join(' · ')):(n.note?esc(n.note):'ללא תגיות')}</div></span>
+    <span class="pct">${n.summary?fmtPct(n.summary.pct):'<span class="muted small">ידני</span>'}</span></button>`}
+async function openDay(id){
+  if(S.nights.has(id)){S.sel=id;go('night');return}
+  if(id>ymd(new Date())){toast('זה תאריך עתידי');return}
+  S.recDate=id;
+  const m=document.createElement('div');m.className='modal';
+  m.innerHTML=`<div class="box"><h2>${esc(longDate(id))}</h2><p class="muted small" style="margin:0">אין רישום ללילה הזה.</p>
+    <div class="row"><button class="btn primary" data-a="rec">הקלטה ללילה הזה</button><button class="btn" data-a="man">רישום ידני</button><button class="btn ghost" data-a="x">סגור</button></div></div>`;
+  m.addEventListener('click',async e=>{const a=e.target.closest('[data-a]')?.dataset.a;if(!a&&e.target!==m)return;m.remove();
+    if(a==='rec')go('record');
+    if(a==='man'){const n={id,date:id,manual:true,status:'done',override:null,tags:[],note:'',minutes:[],events:[],clipIds:[],summary:null};await saveNight(n);S.sel=id;go('night')}});
+  document.body.appendChild(m);
+}
+
+function vNight(){
+  const n=S.nights.get(S.sel);if(!n){S.tab='journal';return vJournal()}
+  const s=n.summary;const c=effCat(n);const cc=c!=null?`var(${CATS[c].v})`:'var(--muted)';
+  const auto=s?s.cat:null;
+  const start=n.start?hm(n.start):null,end=n.end?hm(n.end):null;
+  return {html:`
+    <div class="top"><button class="btn ghost" id="back">› ליומן</button><span class="muted small">${n.demo?'לילה לדוגמה':n.manual?'רישום ידני':n.status==='interrupted'?'הקלטה שנקטעה':''}</span></div>
+    <div><div class="eyebrow">${start&&end?`<span class="num">${start} – ${end}</span>`:'לילה'}</div><h1>${esc(longDate(n.id))}</h1></div>
+    <section class="panel">
+      <div class="verdict" style="--cc:${cc}">
+        <div>${badge(c)}<div class="muted small" style="margin-top:6px">${s?`נחירות ב־${s.sm} מתוך ${s.mon} דקות מנוטרות`:'סיווג ידני, בלי הקלטה'}</div></div>
+        ${s?`<div class="big">${fmtPct(s.pct)}<small> מהלילה</small></div>`:''}
+      </div>
+      ${s?`<div class="stats">
+        <div><b>${fmtDur(s.mon)}</b><span>זמן מנוטר</span></div>
+        <div><b>${s.ev}</b><span>נחירות שזוהו</span></div>
+        <div><b>${s.ep}</b><span>רצפי נחירה</span></div>
+        <div><b>${s.longest?fmtDur(s.longest):'—'}</b><span>הרצף הארוך</span></div>
+        <div><b>${s.first!=null&&n.start?hm(n.start+s.first*60000):'—'}</b><span>נחירה ראשונה</span></div>
+        <div><b>${s.peak?'+'+s.peak+' dB':'—'}</b><span>עוצמה מעל הרקע</span></div></div>
+      <div><div class="row" style="justify-content:space-between"><h3>לאורך הלילה</h3><span class="muted small">נחירות בכל דקה</span></div><div class="chart-wrap"><canvas id="tl" role="img" aria-label="נחירות לפי דקה לאורך הלילה"></canvas></div>
+        <div class="legend" style="margin-top:6px"><span><span class="dot" style="background:var(--c3)"></span>דקת נחירה</span><span><span class="dot" style="background:var(--c2)"></span>נחירה בודדת</span><span><span class="dot" style="background:var(--surface2);border:1px solid var(--line)"></span>לא נוטר</span></div></div>`:''}
+    </section>
+    <section class="panel"><h2>סיווג הלילה</h2>
+      <p class="muted small" style="margin:0">${auto!=null?`הסיווג האוטומטי: ${CATS[auto].name}. אם התחושה שלך או של בת הזוג שונה, אפשר לתקן.`:'בחר איך היה הלילה.'}</p>
+      <div class="tagrow">${auto!=null?`<button class="chip" data-ov="auto" aria-pressed="${n.override==null}">אוטומטי</button>`:''}
+        ${CATS.map(k=>`<button class="chip" data-ov="${k.k}" aria-pressed="${n.override===k.k}"><span class="dot" style="background:var(${k.v})"></span>${k.name}</button>`).join('')}</div></section>
+    <section class="panel"><h2>מה היה באותו ערב</h2>
+      <div class="tagrow" id="tags">${S.tags.map(t=>`<button class="chip" data-tag="${esc(t)}" aria-pressed="${(n.tags||[]).includes(t)}">${esc(t)}</button>`).join('')}</div>
+      <div class="addtag"><input type="text" id="newTag" placeholder="תגית חדשה, למשל: מזגן דולק"><button class="btn" id="addTag">הוסף</button></div>
+      <label class="small muted" for="note">הערות</label>
+      <textarea id="note" placeholder="למשל: אכלתי פיצה ב־22:00, נרדמתי מול הטלוויזיה">${esc(n.note)}</textarea></section>
+    ${n.clipIds?.length?`<section class="panel"><div class="row" style="justify-content:space-between"><h2>קטעי הקלטה</h2><span class="muted small">${n.clipIds.length} הקטעים החזקים</span></div><div id="clips"><p class="muted small">טוען…</p></div></section>`:''}
+    <div class="row"><button class="btn danger" id="delNight">מחק את הלילה</button></div>`,
+  async after(){
+    $('#back').onclick=()=>{S.sel=null;S.month=parseYmd(n.id);go('journal')};
+    if(s)drawTimeline($('#tl'),n);
+    document.querySelectorAll('[data-ov]').forEach(b=>b.onclick=async()=>{n.override=b.dataset.ov==='auto'?null:+b.dataset.ov;await saveNight(n);render()});
+    $('#tags').addEventListener('click',async e=>{const b=e.target.closest('[data-tag]');if(!b)return;const t=b.dataset.tag;n.tags=n.tags||[];
+      n.tags=n.tags.includes(t)?n.tags.filter(x=>x!==t):[...n.tags,t];b.setAttribute('aria-pressed',n.tags.includes(t));await saveNight(n)});
+    const add=async()=>{const v=$('#newTag').value.trim();if(!v)return;if(!S.tags.includes(v)){S.tags.push(v);await saveMeta()}n.tags=[...new Set([...(n.tags||[]),v])];await saveNight(n);render()};
+    $('#addTag').onclick=add;$('#newTag').onkeydown=e=>{if(e.key==='Enter')add()};
+    let to;$('#note').oninput=e=>{clearTimeout(to);to=setTimeout(()=>{n.note=e.target.value;saveNight(n)},400)};
+    $('#delNight').onclick=async()=>{if(await ask(`למחוק את ${esc(longDate(n.id))} כולל ההקלטות וההערות?`,'מחק',true)){await deleteNight(n.id);S.sel=null;go('journal');toast('הלילה נמחק')}};
+    if(n.clipIds?.length){const box=$('#clips');let h='';
+      for(const id of n.clipIds){const c=await dbGet('clips',id);if(!c?.blob)continue;const url=URL.createObjectURL(c.blob);
+        h+=`<div class="clip"><div class="row" style="justify-content:space-between"><b class="num">${hm(n.start+c.t0*1000)}</b><span class="muted small num">+${Math.round(c.score)} dB מעל הרקע</span></div><audio controls preload="metadata" src="${url}"></audio></div>`}
+      box.innerHTML=h||'<p class="muted small">הקטעים לא נמצאו.</p>'}
+  }};
+}
+
+function vRecord(){
+  const id=S.recDate||tonightId();const ex=S.nights.get(id);
+  return {html:`
+    <div><div class="eyebrow">הקלטת לילה</div><h1>מוכן לישון?</h1></div>
+    <section class="panel">
+      <label class="small muted" for="recDate">הלילה של</label>
+      <input type="date" id="recDate" value="${id}" max="${ymd(new Date())}">
+      <div class="muted small">${esc(longDate(id))}${ex?` · ${ex.summary?'כבר יש הקלטה לתאריך הזה — היא תוחלף':'יש רישום ידני, ההקלטה תתווסף אליו'}`:''}</div>
+      <div class="tagrow" id="preTags">${S.tags.map(t=>`<button class="chip" data-tag="${esc(t)}" aria-pressed="${(ex?.tags||[]).includes(t)}">${esc(t)}</button>`).join('')}</div>
+      <p class="muted small" style="margin:0">סמן כבר עכשיו מה היה בערב. אפשר להוסיף ולתקן גם בבוקר.</p>
+      <button class="btn primary big" id="startBtn">התחל הקלטה</button>
+    </section>
+    <section class="panel"><div class="row" style="justify-content:space-between"><h2>בדיקת מיקרופון</h2><button class="btn" id="testBtn">${T.on?'עצור':'בדוק'}</button></div>
+      ${T.on?`<div class="meter" id="tMeter"><i></i></div><div class="small" id="tInfo">מקשיב…</div><p class="muted small" style="margin:0">נסה לנחור או לנשום בכבדות מהמרחק שבו הטלפון יעמוד בלילה. כחול = צליל שייספר כנחירה.</p>`
+        :`<p class="muted small" style="margin:0">20 שניות של האזנה, כדי לוודא שהטלפון שומע אותך ממקום השינה.</p>`}</section>
+    <section class="panel"><h2>לפני שנרדמים</h2><ul class="tips">
+      <li><b>חבר למטען.</b> המסך נשאר פעיל כל הלילה, וכהה לגמרי.</li>
+      <li><b>הנח את הטלפון קרוב לראש,</b> 30 עד 100 ס״מ, על השידה, עם המיקרופון (החלק התחתון) כלפיך.</li>
+      <li><b>אל תנעל את המסך ואל תעבור לאפליקציה אחרת.</b> באייפון ההקלטה נעצרת כשהאפליקציה לא מוצגת. ליתר ביטחון קבע זמן נעילה אוטומטית ל״אף פעם״ בהגדרות › תצוגה ובהירות.</li>
+      <li><b>הפעל מצב ״אל תפריע״,</b> כדי ששיחה או התראה לא יעצרו את ההקלטה.</li>
+      <li>כדי לסיים בבוקר, החזק את הכפתור במסך הלילה עד שהעיגול יתמלא.</li></ul></section>`,
+  after(){
+    $('#recDate').onchange=e=>{if(e.target.value){S.recDate=e.target.value;render()}};
+    $('#preTags').addEventListener('click',async e=>{const b=e.target.closest('[data-tag]');if(!b)return;const on=b.getAttribute('aria-pressed')!=='true';b.setAttribute('aria-pressed',on);
+      let n=S.nights.get(id);if(!n){n={id,date:id,manual:true,status:'done',override:null,tags:[],note:'',minutes:[],events:[],clipIds:[],summary:null,pending:true}}
+      n.tags=on?[...new Set([...(n.tags||[]),b.dataset.tag])]:(n.tags||[]).filter(x=>x!==b.dataset.tag);await saveNight(n)});
+    $('#startBtn').onclick=()=>{if(T.on)endTest();startNight(id)};
+    $('#testBtn').onclick=micTest;
+  }};
+}
+
+function vReports(){
+  const list=inPeriod();const per=[[14,'14 יום'],[30,'30 יום'],[90,'90 יום'],['all','הכול']];
+  const seg=`<div class="seg" role="group" aria-label="תקופה">${per.map(([v,l])=>`<button data-p="${v}" aria-pressed="${S.period==v}">${l}</button>`).join('')}</div>`;
+  if(!list.length)return {html:`<div><div class="eyebrow">דוחות</div><h1>מה עובד</h1></div>${seg}
+    <section class="panel empty"><h2>אין עדיין נתונים בתקופה הזו</h2><p class="muted small" style="margin:0">אחרי כמה לילות מוקלטים יופיעו כאן המגמה והשוואת התגיות.</p>${S.nights.size?'':'<button class="btn" id="demo">טען נתוני דוגמה</button>'}</section>`,
+    after(){bindPeriod();$('#demo')?.addEventListener('click',loadDemo)}};
+  const avg=list.reduce((a,n)=>a+(effPct(n)||0),0)/list.length;
+  const cnt=[0,0,0,0];list.forEach(n=>cnt[effCat(n)]++);
+  const quiet=(cnt[0]+cnt[1])/list.length*100;
+  const half=Math.floor(list.length/2);const recent=list.slice(half),older=list.slice(0,half);
+  const av=a=>a.reduce((s,n)=>s+(effPct(n)||0),0)/a.length;
+  const trend=older.length>=3&&recent.length>=3?av(recent)-av(older):null;
+  const eff=tagEffects(list);const maxAbs=Math.max(10,...eff.map(e=>Math.abs(e.diff||0)));
+  const solid=eff.filter(e=>e.solid&&e.diff!=null);
+  const best=solid.filter(e=>e.diff<-3)[0],worst=[...solid].reverse().filter(e=>e.diff>3)[0];
+  let insight='';
+  if(best||worst){insight=`<section class="panel" style="border-color:var(--accent)"><h2>מה עולה מהנתונים</h2><div class="small">`+
+    (best?`<p style="margin:0 0 6px">בלילות עם <b>${esc(best.t)}</b> נחרת בממוצע ${fmtPct(best.aw)} מהלילה, לעומת ${fmtPct(best.awo)} בלעדיה.</p>`:'')+
+    (worst?`<p style="margin:0">בלילות עם <b>${esc(worst.t)}</b> נחרת בממוצע ${fmtPct(worst.aw)}, לעומת ${fmtPct(worst.awo)} בלעדיה.</p>`:'')+
+    `<p class="muted" style="margin:8px 0 0">אלו מתאמים ולא הוכחה. כמה גורמים יחד באותו ערב יכולים לבלבל את התמונה.</p></div></section>`}
+  return {html:`
+    <div class="top"><div><div class="eyebrow">דוחות</div><h1>מה עובד</h1></div></div>
+    ${seg}${demoBanner()}
+    <div class="stats">
+      <div><b>${list.length}</b><span>לילות</span></div>
+      <div><b>${fmtPct(avg)}</b><span>נחירה בממוצע</span></div>
+      <div><b>${Math.round(quiet)}%</b><span>לילות שקטים</span></div></div>
+    ${trend!=null?`<p class="small" style="margin:0">${Math.abs(trend)<2?'המצב יציב בין החצי הראשון של התקופה לחצי השני.':trend<0?`שיפור: בחצי השני של התקופה נחרת בממוצע ${Math.abs(trend).toFixed(1)} נקודות אחוז פחות.`:`החמרה: בחצי השני של התקופה נחרת בממוצע ${trend.toFixed(1)} נקודות אחוז יותר.`}</p>`:''}
+    <section class="panel"><div class="row" style="justify-content:space-between"><h2>אחוז נחירה לפי לילה</h2><span class="muted small">קו מקווקו: ${CAT_T[2]}%</span></div>
+      <canvas id="trend" role="img" aria-label="אחוז נחירה לכל לילה"></canvas></section>
+    <section class="panel"><h2>התפלגות הלילות</h2>
+      <div class="distbar">${CATS.map(k=>cnt[k.k]?`<i style="width:${cnt[k.k]/list.length*100}%;background:var(${k.v})"></i>`:'').join('')}</div>
+      <div class="legend">${CATS.map(k=>`<span><span class="dot" style="background:var(${k.v})"></span>${k.name} <b class="num" style="color:var(--fg)">${cnt[k.k]}</b></span>`).join('')}</div></section>
+    ${insight}
+    <section class="panel"><h2>השפעת התגיות</h2>
+      <p class="muted small" style="margin:0">ההפרש באחוז הנחירה בין לילות עם התגית ללילות בלעדיה. ירוק = פחות נחירות. תגית עם פחות מ־3 לילות בכל צד מסומנת כנתון ראשוני.</p>
+      <div class="eff">${eff.length?eff.map(e=>{const d=e.diff;const col=d==null?'var(--muted)':d<0?'var(--c0)':'var(--c3)';
+        const wpct=d==null?0:Math.abs(d)/maxAbs*50;const pos=d==null?'':d<0?`right:50%;width:${wpct}%`:`left:${50-wpct}%;width:${wpct}%`;
+        return `<div class="eff-row"><span class="name">${esc(e.t)}</span><span class="val" style="color:${col}">${d==null?'—':(d>0?'+':'')+d.toFixed(1)}</span>
+          <div class="bar"><span class="mid"></span>${d!=null?`<i style="${pos};background:${col}"></i>`:''}</div>
+          <span class="meta num">${e.nw} לילות עם (${fmtPct(e.aw)}) · ${e.nwo} בלי (${fmtPct(e.awo)})${e.solid?'':' · נתון ראשוני'}</span></div>`}).join(''):'<p class="muted small">עוד לא סימנת תגיות בלילות של התקופה.</p>'}</div></section>`,
+  after(){bindPeriod();bindDemo();drawTrend($('#trend'),list)}};
+}
+function bindPeriod(){document.querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>{S.period=b.dataset.p==='all'?'all':+b.dataset.p;render()})}
+
+function vSettings(){
+  const https=location.protocol==='https:'||location.hostname==='localhost';
+  return {html:`
+    <div><div class="eyebrow">הגדרות</div><h1>כיול ונתונים</h1></div>
+    ${https?'':`<div class="banner"><span>הקובץ נפתח שלא מכתובת https, ולכן ספארי לא יאפשר הקלטה. העלה אותו לאתר אחסון (למשל GitHub Pages) ופתח משם.</span></div>`}
+    <section class="panel"><h2>רגישות הזיהוי</h2>
+      <div class="seg" role="group">${Object.entries(SENS).map(([k,v])=>`<button data-sens="${k}" aria-pressed="${S.settings.sens===k}">${v.label}</button>`).join('')}</div>
+      <p class="muted small" style="margin:0">כמה חזק צריך צליל להיות מעל רעש הרקע של החדר (${SENS[S.settings.sens].db} dB) כדי להיבדק. אם יש מזגן או מאוורר והאפליקציה מפספסת נחירות, נסה ״גבוהה״. אם היא סופרת נשימות או רעשים, נסה ״נמוכה״.</p>
+      <p class="muted small" style="margin:0">נחירה נספרת רק כשיש צליל נמוך באורך 0.3–4 שניות שחוזר בקצב נשימה (כל 1.5–12 שניות), לפחות שלוש פעמים ברצף. כך דיבור, דלת או כלב לא נספרים.</p></section>
+    <section class="panel"><h2>סף הסיווג</h2>
+      <div class="small" style="display:grid;gap:6px">${CATS.map((k,i)=>`<div class="row" style="justify-content:space-between"><span>${badge(i)}</span><span class="num muted">${i===0?`פחות מ־${CAT_T[0]}%`:i===3?`${CAT_T[2]}% ומעלה`:`${CAT_T[i-1]}%–${CAT_T[i]}%`} מהדקות</span></div>`).join('')}</div>
+      <p class="muted small" style="margin:0">האחוז הוא מספר הדקות שבהן היו לפחות שתי נחירות, מתוך זמן ההקלטה.</p></section>
+    <section class="panel"><h2>קטעי הקלטה</h2>
+      <label class="small muted" for="clipN">כמה קטעים של 20 שניות לשמור מכל לילה</label>
+      <select id="clipN">${[0,5,10,20].map(v=>`<option value="${v}" ${S.settings.clips===v?'selected':''}>${v===0?'לא לשמור אודיו':v+' קטעים'}</option>`).join('')}</select>
+      <p class="muted small" style="margin:0">נשמרים רק הקטעים עם הנחירות החזקות. האודיו נשמר רק בטלפון שלך.</p></section>
+    <section class="panel"><h2>תגיות</h2><div class="tagrow">${S.tags.map(t=>`<span class="chip">${esc(t)} <button class="btn ghost" style="padding:0 4px;border:0" data-rmtag="${esc(t)}" aria-label="הסר ${esc(t)}">×</button></span>`).join('')}</div>
+      <div class="addtag"><input type="text" id="setTag" placeholder="תגית חדשה"><button class="btn" id="setTagAdd">הוסף</button></div></section>
+    <section class="panel"><h2>גיבוי</h2><p class="muted small" style="margin:0">הנתונים שמורים בדפדפן של הטלפון בלבד. שמור גיבוי מדי פעם (בלי האודיו).</p>
+      <div class="row"><button class="btn" id="exp">ייצוא גיבוי</button><label class="btn" for="imp">ייבוא גיבוי</label><input type="file" id="imp" accept="application/json,.json" hidden></div></section>
+    <section class="panel"><h2>מחיקה</h2><div class="row"><button class="btn danger" id="wipe">מחק את כל הנתונים</button></div></section>`,
+  after(){
+    document.querySelectorAll('[data-sens]').forEach(b=>b.onclick=async()=>{S.settings.sens=b.dataset.sens;await saveMeta();render()});
+    $('#clipN').onchange=async e=>{S.settings.clips=+e.target.value;await saveMeta()};
+    document.querySelectorAll('[data-rmtag]').forEach(b=>b.onclick=async()=>{S.tags=S.tags.filter(t=>t!==b.dataset.rmtag);await saveMeta();render()});
+    const add=async()=>{const v=$('#setTag').value.trim();if(v&&!S.tags.includes(v)){S.tags.push(v);await saveMeta()}render()};$('#setTagAdd').onclick=add;$('#setTag').onkeydown=e=>{if(e.key==='Enter')add()};
+    $('#exp').onclick=()=>{const data={app:'snore-journal',v:1,exported:new Date().toISOString(),tags:S.tags,settings:S.settings,nights:[...S.nights.values()].filter(n=>!n.demo)};
+      const url=URL.createObjectURL(new Blob([JSON.stringify(data)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download=`snore-journal-${ymd(new Date())}.json`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000)};
+    $('#imp').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const d=JSON.parse(await f.text());if(d.app!=='snore-journal')throw 0;
+      for(const n of d.nights||[]){n.clipIds=n.clipIds||[];await saveNight(n)}S.tags=[...new Set([...S.tags,...(d.tags||[])])];await saveMeta();toast(`יובאו ${(d.nights||[]).length} לילות`);render()}catch(err){toast('הקובץ אינו גיבוי של יומן הנחירות')}};
+    $('#wipe').onclick=async()=>{if(!await ask('למחוק את כל הלילות, ההקלטות וההגדרות? אי אפשר לשחזר.','מחק הכול',true))return;
+      for(const n of[...S.nights.values()])await deleteNight(n.id);S.tags=[...DEFAULT_TAGS];S.settings={sens:'mid',clips:10};await saveMeta();render();toast('כל הנתונים נמחקו')};
+  }};
+}
+
+/* ============ demo data ============ */
+async function loadDemo(){
+  const effects={'אלכוהול':16,'ארוחה כבדה מאוחרת':7,'ישנתי על הגב':9,'ישנתי על הצד':-6,'מדבקת אף':-7,'אף סתום / צינון':14,'כרית הגבהה':-4,'עייפות קיצונית':6};
+  let seed=7;const rnd=()=>{seed=(seed*16807)%2147483647;return seed/2147483647};
+  for(let i=24;i>=1;i--){const d=new Date();d.setDate(d.getDate()-i);const id=ymd(d);if(S.nights.has(id))continue;
+    const tags=[];if(rnd()<.25)tags.push('אלכוהול');if(rnd()<.3)tags.push('ארוחה כבדה מאוחרת');tags.push(rnd()<.5?'ישנתי על הגב':'ישנתי על הצד');
+    if(rnd()<.35)tags.push('מדבקת אף');if(rnd()<.12)tags.push('אף סתום / צינון');if(rnd()<.3)tags.push('כרית הגבהה');
+    let pct=8+tags.reduce((s,t)=>s+(effects[t]||0),0)+(rnd()-.5)*8;pct=Math.max(0,Math.min(70,pct));
+    const start=new Date(d);start.setHours(23,Math.floor(rnd()*50),0,0);const N=360+Math.floor(rnd()*90);
+    const minutes=[];for(let m=0;m<N;m++)minutes.push({s:0,o:rnd()<.04?1:0,l:0,c:60});
+    let left=Math.round(N*pct/100);while(left>0){const len=Math.min(left,3+Math.floor(rnd()*20));const at=Math.floor(rnd()*(N-len));
+      for(let k=at;k<at+len;k++){if(minutes[k].s<2){minutes[k].s=2+Math.floor(rnd()*9);minutes[k].l=8+Math.floor(rnd()*18);left--}}}
+    const n={id,date:id,demo:true,start:+start,end:+start+N*60000,status:'done',minutes,events:[],tags,note:'',clipIds:[],override:null,sens:'mid',manual:false};
+    n.summary=summarize(n);await saveNight(n)}
+  render();toast('נטענו 24 לילות דוגמה');
+}
+
+/* ============ boot ============ */
+(async function boot(){
+  idb=await openDB();
+  try{const cfg=await dbGet('meta','cfg');if(cfg){S.tags=cfg.tags||S.tags;S.settings={...S.settings,...cfg.settings}}}catch(e){}
+  try{for(const n of await dbAll('nights')){
+    if(n.status==='recording'){n.status='interrupted';n.end=n.end||n.start+(n.minutes?.length||0)*60000;n.summary=summarize(n);await dbPut('nights',n)}
+    S.nights.set(n.id,n)}}catch(e){}
+  S.month=new Date();S.month.setDate(1);
+  if(navigator.storage?.persist)navigator.storage.persist().catch(()=>{});
+  render();
+  let rt;window.addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(()=>{if(!R.active)render()},200)});
+  matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change',()=>render());
+})();
+</script>
+</body>
+</html>
