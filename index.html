@@ -298,7 +298,7 @@ async function startNight(id){
   let M;try{M=await openMic()}catch(e){
     await ask(location.protocol==='https:'||location.hostname==='localhost'?'אין גישה למיקרופון. אשר גישה בהגדרות ספארי לאתר הזה ונסה שוב.':'הקלטה דורשת שהאפליקציה תיפתח מכתובת https. ראה הוראות בהגדרות.','הבנתי');return}
   if(prev?.clipIds)for(const c of prev.clipIds)await dbDel('clips',c);
-  Object.assign(R,{active:true,M,hist:[],floor:-60,fc:0,ev:null,cands:[],below:0,live:0,last:performance.now(),kept:[],mime:pickMime(),seg:null,segPromise:null,
+  Object.assign(R,{active:true,M,hist:[],floor:-60,fc:0,ev:null,cands:[],below:0,live:0,last:performance.now(),kept:[],samples:[],lastSampleHour:-1,mime:pickMime(),seg:null,segPromise:null,
     night:{id,date:id,start:Date.now(),end:null,status:'recording',minutes:[],events:[],tags:prev?.tags||[],note:prev?.note||'',clipIds:[],override:null,sens:S.settings.sens,manual:false}});
   await saveNight(R.night);
   R.timer=setInterval(tick,100);
@@ -319,6 +319,8 @@ function tick(){
   if(++R.fc%10===0||R.hist.length<20){const s=[...R.hist].sort((a,b)=>a-b);R.floor=s[Math.floor(s.length*0.2)]}
   if(R.hist.length<30)return; // warm-up: learn the room
   const thr=R.floor+SENS[R.night.sens].db;
+  const above=Math.max(0,lvl-R.floor);const mm=R.night.minutes[mi];if(above>(mm.a||0))mm.a=Math.round(above);
+  if(R.seg&&above>R.seg.loud)R.seg.loud=above;
   if(R.ev){
     if(lvl>thr-2){R.ev.dur+=dt;R.ev.pk=Math.max(R.ev.pk,lvl-R.floor);R.ev.rs+=ratio;R.ev.n++;R.below=0}
     else{R.below+=dt;if(R.below>=0.3)endEvent()}
@@ -329,7 +331,6 @@ function endEvent(){
   const e=R.ev;R.ev=null;if(!e)return;const r=e.rs/e.n;const mi=Math.floor(e.t/60);ensureMin(mi);const m=R.night.minutes[mi];
   m.l=Math.max(m.l,Math.round(e.pk));
   if(e.dur>=0.3&&e.dur<=4&&r>=0.55){
-    if(R.seg&&e.t>=R.seg.t0-0.5)R.seg.score=Math.max(R.seg.score,e.pk);
     const c=R.cands;const b=c[c.length-1],a=c[c.length-2];const inR=g=>g>=1.5&&g<=12;
     c.push(e);if(c.length>4)c.shift();
     if(b&&inR(e.t-b.t)){
@@ -344,7 +345,10 @@ function confirmEv(x){x.ok=1;const mi=Math.floor(x.t/60);ensureMin(mi);R.night.m
 function startSegment(){
   if(!R.active||R.mime===null)return;let mr;
   try{mr=R.mime?new MediaRecorder(R.M.stream,{mimeType:R.mime}):new MediaRecorder(R.M.stream)}catch(e){R.mime=null;return}
-  const seg={t0:(Date.now()-R.night.start)/1000,chunks:[],score:0};R.seg=seg;
+  const t0=(Date.now()-R.night.start)/1000;const hr=Math.floor(t0/3600);
+  const seg={t0,chunks:[],loud:0,sample:false};
+  if(hr!==R.lastSampleHour&&t0%3600>=1200){seg.sample=true;R.lastSampleHour=hr}
+  R.seg=seg;
   let done;R.segPromise=new Promise(r=>done=r);
   mr.ondataavailable=e=>{if(e.data&&e.data.size)seg.chunks.push(e.data)};
   mr.onstop=async()=>{seg.t1=(Date.now()-R.night.start)/1000;try{await keepSeg(seg,mr.mimeType||R.mime||'audio/mp4')}catch(e){}done();if(R.active)startSegment()};
@@ -352,13 +356,14 @@ function startSegment(){
   R.mr=mr;R.segTO=setTimeout(()=>{try{mr.stop()}catch(e){}},20000);
 }
 async function keepSeg(seg,type){
-  if(seg.score<=0||!seg.chunks.length)return;
-  const clip={id:R.night.id+'_'+Math.round(seg.t0),night:R.night.id,t0:seg.t0,t1:seg.t1,score:seg.score,type,blob:new Blob(seg.chunks,{type})};
-  const cap=S.settings.clips*2;
-  if(R.kept.length<cap){R.kept.push(clip);await dbPut('clips',clip)}
-  else{let mi=0;R.kept.forEach((c,i)=>{if(c.score<R.kept[mi].score)mi=i});
-    if(clip.score>R.kept[mi].score){await dbDel('clips',R.kept[mi].id);R.kept[mi]=clip;await dbPut('clips',clip)}}
-  R.night.clipIds=R.kept.map(c=>c.id);
+  const K=S.settings.clips;if(!K||!seg.chunks.length)return;
+  const clip={id:R.night.id+'_'+Math.round(seg.t0),night:R.night.id,t0:seg.t0,t1:seg.t1,score:Math.round(seg.loud),sample:seg.sample,type,blob:new Blob(seg.chunks,{type})};
+  if(seg.sample){if(R.samples.length<12){R.samples.push(clip);await dbPut('clips',clip)}}
+  else if(seg.loud>=SENS[R.night.sens].db){
+    if(R.kept.length<K){R.kept.push(clip);await dbPut('clips',clip)}
+    else{let mi=0;R.kept.forEach((c,i)=>{if(c.score<R.kept[mi].score)mi=i});
+      if(clip.score>R.kept[mi].score){await dbDel('clips',R.kept[mi].id);R.kept[mi]=clip;await dbPut('clips',clip)}}}
+  R.night.clipIds=[...R.kept,...R.samples].map(c=>c.id);
 }
 async function stopNight(){
   if(!R.active)return;R.active=false;
@@ -367,11 +372,10 @@ async function stopNight(){
   if(R.mr&&R.mr.state!=='inactive'){try{R.mr.stop()}catch(e){}}
   if(R.segPromise)await Promise.race([R.segPromise,new Promise(r=>setTimeout(r,3000))]);
   const n=R.night;
-  // keep only clips that hold confirmed snores, loudest first
-  const ev=n.events;const good=R.kept.filter(c=>ev.some(e=>e[0]>=c.t0-1&&e[0]<=c.t1+1)).sort((a,b)=>b.score-a.score);
-  const keep=good.slice(0,S.settings.clips);
-  for(const c of R.kept)if(!keep.includes(c))await dbDel('clips',c.id);
-  n.clipIds=keep.sort((a,b)=>a.t0-b.t0).map(c=>c.id);
+  // label every kept clip: confirmed snore, loud sound, or hourly sample
+  const ev=n.events;const all=[...R.kept,...R.samples].sort((a,b)=>a.t0-b.t0);
+  for(const c of all){c.snore=ev.some(e=>e[0]>=c.t0-1&&e[0]<=c.t1+1);try{await dbPut('clips',c)}catch(e){}}
+  n.clipIds=all.map(c=>c.id);n.clipsV=2;
   n.end=Date.now();n.status='done';n.summary=summarize(n);
   await saveNight(n);
   R.M.stream.getTracks().forEach(t=>t.stop());try{await R.M.ac.close()}catch(e){}
@@ -418,6 +422,8 @@ function drawTimeline(cv,n){
   // gaps
   mins.forEach((m,i)=>{if((m.c||0)<30&&i<N-1){g.fillStyle=s2;g.fillRect(L+i*bw,T,Math.max(1,bw),ph)}});
   g.strokeStyle=ln;g.lineWidth=1;g.beginPath();g.moveTo(L,T+ph+.5);g.lineTo(L+pw,T+ph+.5);g.stroke();
+  const maxA=Math.max(20,...mins.map(m=>m.a||0));g.fillStyle=mu;g.globalAlpha=.28;
+  mins.forEach((m,i)=>{if(!m.a)return;const hh=Math.max(1,m.a/maxA*ph);g.fillRect(L+i*bw,T+ph-hh,Math.max(1,bw),hh)});g.globalAlpha=1;
   mins.forEach((m,i)=>{if(!m.s)return;const hh=Math.max(2,m.s/maxS*ph);g.fillStyle=m.s>=2?c3:c2;g.fillRect(L+i*bw,T+ph-hh,Math.max(1,bw-(bw>3?1:0)),hh)});
   // hour ticks
   const st=new Date(n.start);const off=(60-st.getMinutes())%60;const step=N>600?120:60;g.fillStyle=mu;g.textAlign='center';
@@ -527,9 +533,10 @@ function vNight(){
         <div><b>${s.ep}</b><span>רצפי נחירה</span></div>
         <div><b>${s.longest?fmtDur(s.longest):'—'}</b><span>הרצף הארוך</span></div>
         <div><b>${s.first!=null&&n.start?hm(n.start+s.first*60000):'—'}</b><span>נחירה ראשונה</span></div>
-        <div><b>${s.peak?'+'+s.peak+' dB':'—'}</b><span>עוצמה מעל הרקע</span></div></div>
+        <div><b>${s.other}</b><span>צלילים שנפסלו</span></div></div>
+      ${n.start&&n.end&&(n.end-n.start)/60000>30&&s.mon<(n.end-n.start)/60000*0.8?`<div class="banner"><span>האפליקציה הקשיבה רק ${fmtDur(s.mon)} מתוך ${fmtDur((n.end-n.start)/60000)}. כנראה המסך ננעל או שהאפליקציה עברה לרקע, והנחירות בזמן הזה לא נספרו.</span></div>`:''}
       <div><div class="row" style="justify-content:space-between"><h3>לאורך הלילה</h3><span class="muted small">נחירות בכל דקה</span></div><div class="chart-wrap"><canvas id="tl" role="img" aria-label="נחירות לפי דקה לאורך הלילה"></canvas></div>
-        <div class="legend" style="margin-top:6px"><span><span class="dot" style="background:var(--c3)"></span>דקת נחירה</span><span><span class="dot" style="background:var(--c2)"></span>נחירה בודדת</span><span><span class="dot" style="background:var(--surface2);border:1px solid var(--line)"></span>לא נוטר</span></div></div>`:''}
+        <div class="legend" style="margin-top:6px"><span><span class="dot" style="background:var(--c3)"></span>דקת נחירה</span><span><span class="dot" style="background:var(--c2)"></span>נחירה בודדת</span><span><span class="dot" style="background:var(--muted);opacity:.4"></span>עוצמת קול כללית</span><span><span class="dot" style="background:var(--surface2);border:1px solid var(--line)"></span>לא נוטר</span></div></div>`:''}
     </section>
     <section class="panel"><h2>סיווג הלילה</h2>
       <p class="muted small" style="margin:0">${auto!=null?`הסיווג האוטומטי: ${CATS[auto].name}. אם התחושה שלך או של בת הזוג שונה, אפשר לתקן.`:'בחר איך היה הלילה.'}</p>
@@ -540,7 +547,9 @@ function vNight(){
       <div class="addtag"><input type="text" id="newTag" placeholder="תגית חדשה, למשל: מזגן דולק"><button class="btn" id="addTag">הוסף</button></div>
       <label class="small muted" for="note">הערות</label>
       <textarea id="note" placeholder="למשל: אכלתי פיצה ב־22:00, נרדמתי מול הטלוויזיה">${esc(n.note)}</textarea></section>
-    ${n.clipIds?.length?`<section class="panel"><div class="row" style="justify-content:space-between"><h2>קטעי הקלטה</h2><span class="muted small">${n.clipIds.length} הקטעים החזקים</span></div><div id="clips"><p class="muted small">טוען…</p></div></section>`:''}
+    ${n.clipIds?.length?`<section class="panel"><div class="row" style="justify-content:space-between"><h2>האזנה ובדיקה</h2><span class="muted small num">${n.clipIds.length} קטעים</span></div>
+      <p class="muted small" style="margin:0">הצלילים החזקים של הלילה, וגם דגימה אחת מכל שעה. כך אפשר לשמוע בעצמך אם הזיהוי צודק.</p><div id="clips"><p class="muted small">טוען…</p></div></section>`
+      :(s&&!n.demo?`<section class="panel"><h2>האזנה ובדיקה</h2><p class="muted small" style="margin:0">${n.clipsV?'לא נשמרו קטעים בלילה הזה. בדוק בהגדרות שהאפשרות לשמור קטעים מופעלת.':'הלילה הזה הוקלט בגרסה הקודמת, שלא שמרה אודיו כשלא זוהו נחירות. מהלילה הבא יישמרו תמיד הצלילים החזקים ודגימה מכל שעה.'}</p></section>`:'')}
     <div class="row"><button class="btn danger" id="delNight">מחק את הלילה</button></div>`,
   async after(){
     $('#back').onclick=()=>{S.sel=null;S.month=parseYmd(n.id);go('journal')};
@@ -553,9 +562,16 @@ function vNight(){
     let to;$('#note').oninput=e=>{clearTimeout(to);to=setTimeout(()=>{n.note=e.target.value;saveNight(n)},400)};
     $('#delNight').onclick=async()=>{if(await ask(`למחוק את ${esc(longDate(n.id))} כולל ההקלטות וההערות?`,'מחק',true)){await deleteNight(n.id);S.sel=null;go('journal');toast('הלילה נמחק')}};
     if(n.clipIds?.length){const box=$('#clips');let h='';
+      const files={};
       for(const id of n.clipIds){const c=await dbGet('clips',id);if(!c?.blob)continue;const url=URL.createObjectURL(c.blob);
-        h+=`<div class="clip"><div class="row" style="justify-content:space-between"><b class="num">${hm(n.start+c.t0*1000)}</b><span class="muted small num">+${Math.round(c.score)} dB מעל הרקע</span></div><audio controls preload="metadata" src="${url}"></audio></div>`}
-      box.innerHTML=h||'<p class="muted small">הקטעים לא נמצאו.</p>'}
+        const kind=c.snore?['נחירה שזוהתה','--c3']:c.sample?['דגימה שעתית','--c1']:['צליל חזק, לא נחירה','--c2'];
+        const ext=/mp4|aac|m4a/.test(c.type)?'m4a':/ogg/.test(c.type)?'ogg':'webm';
+        const f=new File([c.blob],`snore-${n.id}-${hm(n.start+c.t0*1000).replace(':','')}.${ext}`,{type:c.type});
+        const canShare=!!(navigator.canShare&&navigator.canShare({files:[f]}));if(canShare)files[id]=f;
+        h+=`<div class="clip"><div class="row" style="justify-content:space-between"><span class="row" style="gap:8px"><b class="num">${hm(n.start+c.t0*1000)}</b><span class="cat-badge" style="--cc:var(${kind[1]});padding:2px 10px;font-size:.8rem">${kind[0]}</span></span>
+          <span class="row" style="gap:8px"><span class="muted small num">${c.score?'+'+Math.round(c.score)+' dB':''}</span>${canShare?`<button class="btn" style="padding:4px 12px" data-share="${id}">שתף</button>`:''}</span></div><audio controls preload="metadata" src="${url}"></audio></div>`}
+      box.innerHTML=h||'<p class="muted small">הקטעים לא נמצאו.</p>';
+      box.addEventListener('click',async e=>{const b=e.target.closest('[data-share]');if(!b)return;try{await navigator.share({files:[files[b.dataset.share]]})}catch(err){}})}
   }};
 }
 
@@ -648,9 +664,9 @@ function vSettings(){
       <div class="small" style="display:grid;gap:6px">${CATS.map((k,i)=>`<div class="row" style="justify-content:space-between"><span>${badge(i)}</span><span class="num muted">${i===0?`פחות מ־${CAT_T[0]}%`:i===3?`${CAT_T[2]}% ומעלה`:`${CAT_T[i-1]}%–${CAT_T[i]}%`} מהדקות</span></div>`).join('')}</div>
       <p class="muted small" style="margin:0">האחוז הוא מספר הדקות שבהן היו לפחות שתי נחירות, מתוך זמן ההקלטה.</p></section>
     <section class="panel"><h2>קטעי הקלטה</h2>
-      <label class="small muted" for="clipN">כמה קטעים של 20 שניות לשמור מכל לילה</label>
+      <label class="small muted" for="clipN">כמה קטעים חזקים של 20 שניות לשמור מכל לילה (בנוסף לדגימה אחת מכל שעה)</label>
       <select id="clipN">${[0,5,10,20].map(v=>`<option value="${v}" ${S.settings.clips===v?'selected':''}>${v===0?'לא לשמור אודיו':v+' קטעים'}</option>`).join('')}</select>
-      <p class="muted small" style="margin:0">נשמרים רק הקטעים עם הנחירות החזקות. האודיו נשמר רק בטלפון שלך.</p></section>
+      <p class="muted small" style="margin:0">נשמרים הצלילים החזקים של הלילה, בין אם זוהו כנחירה ובין אם לא, כדי שתוכל לבדוק את הזיהוי. האודיו נשמר רק בטלפון שלך.</p></section>
     <section class="panel"><h2>תגיות</h2><div class="tagrow">${S.tags.map(t=>`<span class="chip">${esc(t)} <button class="btn ghost" style="padding:0 4px;border:0" data-rmtag="${esc(t)}" aria-label="הסר ${esc(t)}">×</button></span>`).join('')}</div>
       <div class="addtag"><input type="text" id="setTag" placeholder="תגית חדשה"><button class="btn" id="setTagAdd">הוסף</button></div></section>
     <section class="panel"><h2>גיבוי</h2><p class="muted small" style="margin:0">הנתונים שמורים בדפדפן של הטלפון בלבד. שמור גיבוי מדי פעם (בלי האודיו).</p>
